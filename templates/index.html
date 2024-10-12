@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeszyt Online</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid black;
+            cursor: crosshair;
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rysuj na zeszycie!</h1>
+    <canvas id="drawingCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const context = canvas.getContext('2d');
+        const socket = io(); // Połączenie z serwerem
+
+        let drawing = false;
+
+        context.strokeStyle = 'black';  // Ustaw kolor linii
+        context.lineWidth = 2;           // Ustaw grubość linii
+        context.lineCap = 'round';       // Ustaw zaokrąglenie końców linii
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mousemove', draw);
+
+        let lastX = 0; // Zmienna do przechowywania ostatniej pozycji X
+        let lastY = 0; // Zmienna do przechowywania ostatniej pozycji Y
+
+        function startDrawing(e) {
+            drawing = true;
+            lastX = e.offsetX; // Ustaw ostatnią pozycję X
+            lastY = e.offsetY; // Ustaw ostatnią pozycję Y
+        }
+
+        function stopDrawing() {
+            drawing = false;
+            context.beginPath(); // Rozpocznij nową ścieżkę po zakończeniu rysowania
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+
+            context.lineTo(e.offsetX, e.offsetY); // Dodaj nowy punkt do ścieżki
+            context.stroke(); // Narysuj linię
+
+            // Wyślij dane rysunku do serwera
+            socket.emit('draw', {
+                x: e.offsetX,
+                y: e.offsetY,
+                lastX: lastX, // Wyślij ostatnią pozycję X
+                lastY: lastY  // Wyślij ostatnią pozycję Y
+            });
+
+            lastX = e.offsetX; // Zaktualizuj ostatnią pozycję X
+            lastY = e.offsetY; // Zaktualizuj ostatnią pozycję Y
+        }
+
+        // Odbieranie rysunków od innych klientów
+        socket.on('draw', function(data) {
+            context.beginPath(); // Rozpocznij nową ścieżkę
+            context.moveTo(data.lastX, data.lastY); // Przejdź do ostatniej pozycji
+            context.lineTo(data.x, data.y); // Dodaj nowy punkt do ścieżki
+            context.stroke(); // Narysuj linię
+        });
+    </script>
+</body>
+</html>
