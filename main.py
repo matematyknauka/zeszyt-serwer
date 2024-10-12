@@ -12,9 +12,9 @@ socketio = SocketIO(app)
 def index():
     return render_template('index.html')
 
-@socketio.on('draw')
+@socketio.on('draw_line')
 def handle_draw(data):
-    emit('draw', data, broadcast=True)  # Użyj 'draw' jako zdarzenia
+    emit('draw_line', data, broadcast=True)
 
 if __name__ == '__main__':
     # Utworzenie tunelu ngrok

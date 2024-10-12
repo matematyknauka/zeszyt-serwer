@@ -9,7 +9,6 @@
         canvas {
             border: 1px solid black;
             cursor: crosshair;
-            background-color: white;
         }
     </style>
 </head>
@@ -23,53 +22,55 @@
         const socket = io(); // Połączenie z serwerem
 
         let drawing = false;
+        let lastX = 0; // Zmienna do przechowywania poprzedniego X
+        let lastY = 0; // Zmienna do przechowywania poprzedniego Y
+        const strokeColor = "black"; // Kolor rysowania
+        const strokeWidth = 2; // Grubość linii
 
-        context.strokeStyle = 'black';  // Ustaw kolor linii
-        context.lineWidth = 2;           // Ustaw grubość linii
-        context.lineCap = 'round';       // Ustaw zaokrąglenie końców linii
-
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mousemove', draw);
-
-        let lastX = 0; // Zmienna do przechowywania ostatniej pozycji X
-        let lastY = 0; // Zmienna do przechowywania ostatniej pozycji Y
-
-        function startDrawing(e) {
+        canvas.addEventListener('mousedown', (e) => {
             drawing = true;
-            lastX = e.offsetX; // Ustaw ostatnią pozycję X
-            lastY = e.offsetY; // Ustaw ostatnią pozycję Y
-        }
+            [lastX, lastY] = [e.offsetX, e.offsetY]; // Ustawienie pozycji startowej
+        });
 
-        function stopDrawing() {
+        canvas.addEventListener('mouseup', () => {
             drawing = false;
-            context.beginPath(); // Rozpocznij nową ścieżkę po zakończeniu rysowania
-        }
+            context.beginPath(); // Zakończenie rysowania
+        });
+
+        canvas.addEventListener('mousemove', draw);
 
         function draw(e) {
             if (!drawing) return;
 
-            context.lineTo(e.offsetX, e.offsetY); // Dodaj nowy punkt do ścieżki
-            context.stroke(); // Narysuj linię
+            context.lineWidth = strokeWidth; // Ustawienie grubości linii
+            context.strokeStyle = strokeColor; // Ustawienie koloru
+            context.lineCap = 'round'; // Zaokrąglone końce linii
+            context.beginPath(); // Rozpoczęcie nowej ścieżki
+            context.moveTo(lastX, lastY); // Przesunięcie do ostatniej pozycji
+            context.lineTo(e.offsetX, e.offsetY); // Rysowanie linii do aktualnej pozycji
+            context.stroke(); // Wykonanie rysunku
+            [lastX, lastY] = [e.offsetX, e.offsetY]; // Zaktualizowanie ostatnich współrzędnych
 
             // Wyślij dane rysunku do serwera
-            socket.emit('draw', {
-                x: e.offsetX,
-                y: e.offsetY,
-                lastX: lastX, // Wyślij ostatnią pozycję X
-                lastY: lastY  // Wyślij ostatnią pozycję Y
+            socket.emit('draw_line', {
+                x0: lastX,
+                y0: lastY,
+                x1: e.offsetX,
+                y1: e.offsetY,
+                color: strokeColor,
+                width: strokeWidth
             });
-
-            lastX = e.offsetX; // Zaktualizuj ostatnią pozycję X
-            lastY = e.offsetY; // Zaktualizuj ostatnią pozycję Y
         }
 
         // Odbieranie rysunków od innych klientów
-        socket.on('draw', function(data) {
-            context.beginPath(); // Rozpocznij nową ścieżkę
-            context.moveTo(data.lastX, data.lastY); // Przejdź do ostatniej pozycji
-            context.lineTo(data.x, data.y); // Dodaj nowy punkt do ścieżki
-            context.stroke(); // Narysuj linię
+        socket.on('draw_line', function(data) {
+            context.lineWidth = data.width; // Ustawienie grubości linii
+            context.strokeStyle = data.color; // Ustawienie koloru
+            context.lineCap = 'round'; // Zaokrąglone końce linii
+            context.beginPath(); // Rozpoczęcie nowej ścieżki
+            context.moveTo(data.x0, data.y0); // Przesunięcie do współrzędnych nadawcy
+            context.lineTo(data.x1, data.y1); // Rysowanie linii do aktualnych współrzędnych
+            context.stroke(); // Wykonanie rysunku
         });
     </script>
 </body>
