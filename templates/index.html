@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeszyt Online</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid black;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rysuj na zeszycie!</h1>
+    <canvas id="drawingCanvas" width="800" height="600"></canvas>
+    <button id="saveButton">Zapisz rysunek</button>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const context = canvas.getContext('2d');
+        const socket = io(); // Połączenie z serwerem
+
+        let drawing = false;
+        let lastX = 0; // Zmienna do przechowywania poprzedniego X
+        let lastY = 0; // Zmienna do przechowywania poprzedniego Y
+        const strokeColor = "black"; // Kolor rysowania
+        const strokeWidth = 3; // Grubość linii
+
+        // Tablica do przechowywania danych rysunku
+        const drawingData = [];
+
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY]; // Ustawienie pozycji startowej
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!drawing) return;
+
+            drawLine(lastX, lastY, e.offsetX, e.offsetY); // Rysowanie linii lokalnie
+            [lastX, lastY] = [e.offsetX, e.offsetY]; // Aktualizacja ostatnich współrzędnych
+
+            // Wyślij dane rysunku do serwera
+            const lineData = {
+                x0: lastX,
+                y0: lastY,
+                x1: e.offsetX,
+                y1: e.offsetY,
+                color: strokeColor,
+                width: strokeWidth
+            };
+            socket.emit('draw_line', lineData);
+            drawingData.push(lineData); // Dodanie danych linii do tablicy
+        });
+
+        // Funkcja rysująca linię
+        function drawLine(x0, y0, x1, y1) {
+            context.lineWidth = strokeWidth; // Ustawienie grubości linii na 3
+            context.strokeStyle = strokeColor; // Ustawienie koloru
+            context.lineCap = 'round'; // Zaokrąglone końce linii
+            context.beginPath(); // Rozpoczęcie nowej ścieżki
+            context.moveTo(x0, y0); // Przesunięcie do poprzedniego punktu
+            context.lineTo(x1, y1); // Rysowanie linii do nowego punktu
+            context.stroke(); // Wykonanie rysunku
+        }
+
+        // Odbieranie rysunków od innych klientów
+        socket.on('draw_line', function(data) {
+            drawLine(data.x0, data.y0, data.x1, data.y1); // Rysowanie linii na podstawie danych z serwera
+        });
+
+        document.getElementById('saveButton').addEventListener('click', function() {
+            fetch('/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ drawing_data: drawingData })
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'drawing.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            })
+            .catch(error => console.error('Błąd podczas zapisu:', error));
+        });
+    </script>
+</body>
+</html>
